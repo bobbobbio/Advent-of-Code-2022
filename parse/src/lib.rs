@@ -89,6 +89,9 @@ pub struct Comma;
 pub struct NewLine;
 
 #[derive(Debug, Clone, Copy)]
+pub struct SepByNewLine;
+
+#[derive(Debug, Clone, Copy)]
 pub struct Space;
 
 #[derive(Clone, Debug)]
@@ -104,6 +107,13 @@ impl<T: HasParser> HasParser for List<T, Comma> {
     #[into_parser]
     fn parser() -> _ {
         sep_by1(T::parser(), token(',')).map(|v: Vec<_>| v.into())
+    }
+}
+
+impl<T: HasParser> HasParser for List<T, SepByNewLine> {
+    #[into_parser]
+    fn parser() -> _ {
+        sep_by1(T::parser(), token('\n')).map(|v: Vec<_>| v.into())
     }
 }
 

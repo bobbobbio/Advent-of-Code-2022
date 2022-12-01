@@ -23,7 +23,6 @@ combine = "*"
 
 MAIN_RS = '''\
 #![feature(type_alias_impl_trait)]
-#![feature(generic_associated_types)]
 
 use advent::prelude::*;
 
@@ -41,7 +40,7 @@ harness!();
 
 '''
 
-YEAR = 2021
+YEAR = 2022
 
 def download_input(name: str, day: int):
     with open(os.path.join(os.getenv('HOME'), '.config/aocd/token')) as f:
