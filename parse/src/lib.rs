@@ -89,10 +89,13 @@ pub struct Comma;
 pub struct NewLine;
 
 #[derive(Debug, Clone, Copy)]
-pub struct SepByNewLine;
+pub struct Space;
 
 #[derive(Debug, Clone, Copy)]
-pub struct Space;
+pub struct SepBy<T>(PhantomData<T>);
+
+#[derive(Debug, Clone, Copy)]
+pub struct TermWith<T>(PhantomData<T>);
 
 #[derive(Clone, Debug)]
 pub struct List<T, Sep>(Vec<T>, PhantomData<Sep>);
@@ -103,28 +106,28 @@ impl<T, Sep> From<Vec<T>> for List<T, Sep> {
     }
 }
 
-impl<T: HasParser> HasParser for List<T, Comma> {
+impl<T: HasParser> HasParser for List<T, SepBy<Comma>> {
     #[into_parser]
     fn parser() -> _ {
         sep_by1(T::parser(), token(',')).map(|v: Vec<_>| v.into())
     }
 }
 
-impl<T: HasParser> HasParser for List<T, SepByNewLine> {
+impl<T: HasParser> HasParser for List<T, SepBy<NewLine>> {
     #[into_parser]
     fn parser() -> _ {
         sep_by1(T::parser(), token('\n')).map(|v: Vec<_>| v.into())
     }
 }
 
-impl<T: HasParser> HasParser for List<T, NewLine> {
+impl<T: HasParser> HasParser for List<T, TermWith<NewLine>> {
     #[into_parser]
     fn parser() -> _ {
         many1(T::parser().skip(token('\n'))).map(|v: Vec<_>| v.into())
     }
 }
 
-impl<T: HasParser> HasParser for List<T, Space> {
+impl<T: HasParser> HasParser for List<T, SepBy<Space>> {
     #[into_parser]
     fn parser() -> _ {
         sep_by1(T::parser(), token(' ')).map(|v: Vec<_>| v.into())
