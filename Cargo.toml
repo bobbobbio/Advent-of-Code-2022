@@ -11,4 +11,5 @@ members = [
     'one',
     'parse',
     'parse_macro',
+    'two',
 ]

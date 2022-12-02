@@ -96,6 +96,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "two"
+version = "0.1.0"
+dependencies = [
+ "advent",
+ "combine",
+]
+
+[[package]]
 name = "unicode-ident"
 version = "1.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
