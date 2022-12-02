@@ -18,4 +18,4 @@ fn part_two(input: List<List<u32, NewLine>, SepByNewLine>) -> u32 {
     elf_calories.into_iter().take(3).sum()
 }
 
-harness!();
+harness!(part_1: 67622, part_2: 201491);
