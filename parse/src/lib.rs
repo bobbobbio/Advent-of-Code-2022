@@ -100,9 +100,19 @@ pub struct TermWith<T>(PhantomData<T>);
 #[derive(Clone, Debug)]
 pub struct List<T, Sep>(Vec<T>, PhantomData<Sep>);
 
+#[derive(Clone, Debug)]
+pub struct Nil;
+
 impl<T, Sep> From<Vec<T>> for List<T, Sep> {
     fn from(v: Vec<T>) -> Self {
         Self(v, PhantomData)
+    }
+}
+
+impl<T: HasParser> HasParser for List<T, Nil> {
+    #[into_parser]
+    fn parser() -> _ {
+        many1(T::parser()).map(|v: Vec<_>| v.into())
     }
 }
 
