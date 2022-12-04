@@ -18,6 +18,7 @@ edition = "2021"
 
 [dependencies]
 advent = { path = "../advent" }
+parse = { path = "../parse" }
 combine = "*"
 '''
 

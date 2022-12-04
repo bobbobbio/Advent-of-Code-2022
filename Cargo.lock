@@ -37,6 +37,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "heck"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2540771e65fc8cb83cd6e8a237f70c319bd5c29f78ed1084ba5d50eeac86f7f9"
+
+[[package]]
 name = "memchr"
 version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -48,6 +54,7 @@ version = "0.1.0"
 dependencies = [
  "advent",
  "combine",
+ "parse",
 ]
 
 [[package]]
@@ -62,6 +69,8 @@ dependencies = [
 name = "parse_macro"
 version = "0.1.0"
 dependencies = [
+ "heck",
+ "proc-macro2",
  "quote",
  "syn",
 ]
@@ -101,6 +110,7 @@ version = "0.1.0"
 dependencies = [
  "advent",
  "combine",
+ "parse",
 ]
 
 [[package]]
@@ -109,6 +119,7 @@ version = "0.1.0"
 dependencies = [
  "advent",
  "combine",
+ "parse",
 ]
 
 [[package]]

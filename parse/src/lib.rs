@@ -1,7 +1,7 @@
 #![feature(type_alias_impl_trait)]
 
 use combine::eof;
-use combine::parser::char::spaces;
+use combine::parser::char::{alpha_num, spaces};
 use combine::stream::{easy, position};
 use prelude::*;
 use std::convert::Infallible;
@@ -18,6 +18,7 @@ pub mod prelude {
     pub use combine::*;
     pub use combine::{Parser, Stream};
     pub use parse_macro::into_parser;
+    pub use parse_macro::HasParser;
     pub use std::str::FromStr;
 }
 
@@ -27,6 +28,13 @@ pub trait HasParser {
     fn parser<Input>() -> Self::Parser<Input>
     where
         Input: combine::Stream<Token = char>;
+}
+
+impl HasParser for char {
+    #[into_parser]
+    fn parser() -> _ {
+        alpha_num()
+    }
 }
 
 #[derive(Debug)]
@@ -62,7 +70,7 @@ impl From<easy::Errors<char, &str, position::SourcePosition>> for Error {
 
 pub type Result<T> = std::result::Result<T, Error>;
 
-macro_rules! number_parser {
+macro_rules! unsigned_number_parser {
     ($($id:ty),*) => {
         $(impl HasParser for $id {
             #[into_parser]
@@ -73,7 +81,21 @@ macro_rules! number_parser {
     }
 }
 
-number_parser!(u8, u16, u32, u64, u128, usize);
+unsigned_number_parser!(u8, u16, u32, u64, u128, usize);
+
+macro_rules! signed_number_parser {
+    ($($id:ty),*) => {
+        $(impl HasParser for $id {
+            #[into_parser]
+            fn parser() -> _ {
+                token('-').with(many1(digit()))
+                    .map(|s: String| format!("-{s}").parse::<Self>().unwrap())
+            }
+        })*
+    }
+}
+
+signed_number_parser!(i8, i16, i32, i64, i128, isize);
 
 impl HasParser for String {
     #[into_parser]

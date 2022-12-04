@@ -3,15 +3,8 @@
 use advent::prelude::*;
 use std::collections::HashSet;
 
-#[derive(Hash, Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Hash, Debug, Clone, Copy, PartialEq, Eq, HasParser)]
 struct Item(char);
-
-impl HasParser for Item {
-    #[into_parser]
-    fn parser() -> _ {
-        alpha_num().map(Self)
-    }
-}
 
 impl Item {
     fn value(&self) -> u32 {

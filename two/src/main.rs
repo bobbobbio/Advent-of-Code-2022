@@ -10,23 +10,15 @@ enum Play {
     Scissors = 3,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, HasParser)]
 #[repr(u32)]
 enum Outcome {
+    #[parse(string = "Z")]
     Win = 6,
+    #[parse(string = "Y")]
     Draw = 3,
+    #[parse(string = "X")]
     Lose = 0,
-}
-
-impl HasParser for Outcome {
-    #[into_parser]
-    fn parser() -> _ {
-        choice((
-            char('X').map(|_| Self::Lose),
-            char('Y').map(|_| Self::Draw),
-            char('Z').map(|_| Self::Win),
-        ))
-    }
 }
 
 impl Outcome {
@@ -71,17 +63,10 @@ impl Play {
     }
 }
 
+#[derive(HasParser)]
 struct Entry1 {
     opponent: Play,
     mine: Play,
-}
-
-impl HasParser for Entry1 {
-    #[into_parser]
-    fn parser() -> _ {
-        (Play::parser(), char(' '), Play::parser())
-            .map(|(opponent, _, mine)| Entry1 { opponent, mine })
-    }
 }
 
 impl Entry1 {
@@ -95,17 +80,10 @@ fn part_one(i: List<Entry1, TermWith<NewLine>>) -> u32 {
     i.into_iter().map(|e| e.score()).sum()
 }
 
+#[derive(HasParser)]
 struct Entry2 {
     opponent: Play,
     outcome: Outcome,
-}
-
-impl HasParser for Entry2 {
-    #[into_parser]
-    fn parser() -> _ {
-        (Play::parser(), char(' '), Outcome::parser())
-            .map(|(opponent, _, outcome)| Entry2 { opponent, outcome })
-    }
 }
 
 impl Entry2 {
