@@ -76,12 +76,13 @@ fn derive_has_parser_struct(
     let mut unique = (1..).map(|n| Ident::new(&format!("f{n}"), Span::call_site()));
 
     let sep_parser: Expr =
-        get_container_separator_parser_from_attrs(attrs)?.unwrap_or(parse_quote!(char(' ')));
+        get_container_separator_parser_from_attrs(parse_quote!(char(' ')), attrs)?;
 
     while let Some(f) = fields_iter.next() {
         let ty = &f.ty;
 
-        let parser_expr: Expr = parse_quote!(<#ty as ::parse::HasParser>::parser());
+        let default_parser_expr = parse_quote!(<#ty as ::parse::HasParser>::parser());
+        let parser_expr = get_field_parser_from_attrs(default_parser_expr, f.attrs.clone())?;
         if fields_iter.peek().is_some() {
             parsers.push(parse_quote!(#parser_expr.skip(#sep_parser)));
         } else {
@@ -117,24 +118,43 @@ fn derive_has_parser_struct(
     })
 }
 
-fn get_variant_parser_from_attrs(attrs: Vec<syn::Attribute>) -> Result<Option<Expr>> {
+fn get_variant_parser_from_attrs(default_parser: Expr, attrs: Vec<syn::Attribute>) -> Result<Expr> {
     let attr_map = attrs::parse_attr_map::<attrs::VariantKeyword>(attrs)?;
 
     if let Some(value) = attr_map.get(&attrs::VariantKeyword::String) {
-        Ok(Some(parse_quote!(string(#value))))
+        Ok(parse_quote!(string(#value)))
     } else {
-        Ok(None)
+        Ok(default_parser)
     }
 }
 
-fn get_container_separator_parser_from_attrs(attrs: Vec<syn::Attribute>) -> Result<Option<Expr>> {
+fn get_container_separator_parser_from_attrs(
+    default_parser: Expr,
+    attrs: Vec<syn::Attribute>,
+) -> Result<Expr> {
     let attr_map = attrs::parse_attr_map::<attrs::ContainerKeyword>(attrs)?;
 
     if let Some(value) = attr_map.get(&attrs::ContainerKeyword::SepBy) {
-        Ok(Some(parse_quote!(string(#value))))
+        Ok(parse_quote!(string(#value)))
     } else {
-        Ok(None)
+        Ok(default_parser)
     }
+}
+
+fn get_field_parser_from_attrs(default_parser: Expr, attrs: Vec<syn::Attribute>) -> Result<Expr> {
+    let attr_map = attrs::parse_attr_map::<attrs::FieldKeyword>(attrs)?;
+
+    let mut parser = default_parser;
+
+    if let Some(value) = attr_map.get(&attrs::FieldKeyword::Before) {
+        parser = parse_quote!(string(#value).with(#parser));
+    }
+
+    if let Some(value) = attr_map.get(&attrs::FieldKeyword::After) {
+        parser = parse_quote!(#parser.skip(string(#value)));
+    }
+
+    Ok(parser)
 }
 
 fn name_parser(name: &Ident) -> Expr {
@@ -149,8 +169,7 @@ fn derive_has_parser_enum(name: Ident, data: DataEnum) -> Result<ItemImpl> {
         let variant_span = v.span();
         match v.fields {
             Fields::Unit => {
-                let parser =
-                    get_variant_parser_from_attrs(v.attrs)?.unwrap_or(name_parser(variant_name));
+                let parser = get_variant_parser_from_attrs(name_parser(variant_name), v.attrs)?;
                 parsers.push(parse_quote!(attempt(#parser.map(|_| Self::#variant_name))));
             }
             Fields::Unnamed(f) => {

@@ -4,22 +4,12 @@ use advent::prelude::*;
 use std::collections::VecDeque;
 use std::fmt;
 
-#[derive(Clone, Copy, Debug)]
-struct Crate(char);
+#[derive(Clone, Copy, Debug, HasParser)]
+struct Crate(#[parse(before = "[", after = "]")] char);
 
 impl fmt::Display for Crate {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0)
-    }
-}
-
-impl HasParser for Crate {
-    #[into_parser]
-    fn parser() -> _ {
-        char('[')
-            .with(char::parser())
-            .skip(char(']'))
-            .map(|v| Self(v))
     }
 }
 
@@ -40,23 +30,15 @@ impl fmt::Display for EmptyOrCrate {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, HasParser)]
+#[parse(sep_by = " ")]
 struct Move {
+    #[parse(before = "move ")]
     move_: u32,
+    #[parse(before = "from ")]
     from: u32,
+    #[parse(before = "to ")]
     to: u32,
-}
-
-impl HasParser for Move {
-    #[into_parser]
-    fn parser() -> _ {
-        (
-            string("move ").with(u32::parser()),
-            string(" from ").with(u32::parser()),
-            string(" to ").with(u32::parser()),
-        )
-            .map(|(move_, from, to)| Self { move_, from, to })
-    }
 }
 
 #[derive(HasParser, Debug)]

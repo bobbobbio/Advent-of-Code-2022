@@ -58,6 +58,29 @@ fn combine_parse() {
 }
 
 #[derive(Debug, PartialEq, HasParser)]
+#[parse(sep_by = ", ")]
+struct CustomCombineParse {
+    #[parse(before = "{ c: ")]
+    c: char,
+    #[parse(before = "i: ")]
+    i: u32,
+    #[parse(before = "o: ", after = " }")]
+    o: ManyThings,
+}
+
+#[test]
+fn custom_combine_parse() {
+    test_parse(
+        CustomCombineParse {
+            c: 'a',
+            i: 33,
+            o: ManyThings::Salsa,
+        },
+        "{ c: a, i: 33, o: salsa }",
+    );
+}
+
+#[derive(Debug, PartialEq, HasParser)]
 struct NewType(u32);
 
 #[test]

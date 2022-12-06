@@ -23,6 +23,26 @@ impl<Kind: AttrKeywordKind> Parse for ParseAttrs<Kind> {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, PartialOrd, Ord)]
+pub enum FieldKeyword {
+    Before,
+    After,
+}
+
+impl AttrKeywordKind for FieldKeyword {}
+
+impl TryFrom<Ident> for FieldKeyword {
+    type Error = Error;
+
+    fn try_from(id: Ident) -> Result<Self> {
+        Ok(match &id.to_string()[..] {
+            "before" => Self::Before,
+            "after" => Self::After,
+            _ => return Err(Error::new(id.span(), "unknown keyword")),
+        })
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy, PartialOrd, Ord)]
 pub enum VariantKeyword {
     String,
 }
