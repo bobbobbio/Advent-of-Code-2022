@@ -4,10 +4,11 @@ use heck::ToSnakeCase as _;
 use proc_macro::TokenStream;
 use proc_macro2::Span;
 use quote::quote;
+use std::collections::BTreeMap;
 use std::matches;
 use syn::parse::{Parse, ParseStream};
 use syn::punctuated::Punctuated;
-use syn::spanned::Spanned as _;
+use syn::spanned::Spanned;
 use syn::*;
 
 fn verify_signature(sig: &Signature) -> Result<()> {
@@ -76,7 +77,7 @@ fn derive_has_parser_struct(
     let mut unique = (1..).map(|n| Ident::new(&format!("f{n}"), Span::call_site()));
 
     let sep_parser: Expr =
-        get_parser_from_attrs(attrs, "sep_by", name.span())?.unwrap_or(parse_quote!(char(' ')));
+        get_container_separator_parser_from_attrs(attrs)?.unwrap_or(parse_quote!(char(' ')));
 
     while let Some(f) = fields_iter.next() {
         let ty = &f.ty;
@@ -117,12 +118,12 @@ fn derive_has_parser_struct(
     })
 }
 
-struct ParseAttrs {
+struct ParseAttrs<Kind> {
     _parens: token::Paren,
-    attrs: Punctuated<ParseAttr, Token![,]>,
+    attrs: Punctuated<ParseAttr<Kind>, Token![,]>,
 }
 
-impl Parse for ParseAttrs {
+impl<Kind: AttrKeywordKind> Parse for ParseAttrs<Kind> {
     fn parse(input: ParseStream) -> Result<Self> {
         let content;
         Ok(Self {
@@ -132,13 +133,73 @@ impl Parse for ParseAttrs {
     }
 }
 
-struct ParseAttr {
-    kw: Ident,
+#[derive(Debug, PartialEq, Eq, Clone, Copy, PartialOrd, Ord)]
+enum VariantKeyword {
+    String,
+}
+
+impl AttrKeywordKind for VariantKeyword {}
+
+impl TryFrom<Ident> for VariantKeyword {
+    type Error = Error;
+
+    fn try_from(id: Ident) -> Result<Self> {
+        Ok(match &id.to_string()[..] {
+            "string" => Self::String,
+            _ => return Err(Error::new(id.span(), "unknown keyword")),
+        })
+    }
+}
+
+trait AttrKeywordKind: TryFrom<Ident, Error = Error> + PartialOrd + Ord {}
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy, PartialOrd, Ord)]
+enum ContainerKeyword {
+    SepBy,
+}
+
+impl AttrKeywordKind for ContainerKeyword {}
+
+impl TryFrom<Ident> for ContainerKeyword {
+    type Error = Error;
+
+    fn try_from(id: Ident) -> Result<Self> {
+        Ok(match &id.to_string()[..] {
+            "sep_by" => Self::SepBy,
+            _ => return Err(Error::new(id.span(), "unknown keyword")),
+        })
+    }
+}
+
+#[derive(Debug, Clone)]
+struct AttrKeyword<Kind> {
+    kind: Kind,
+    span: Span,
+}
+
+impl<Kind> Spanned for AttrKeyword<Kind> {
+    fn span(&self) -> Span {
+        self.span.clone()
+    }
+}
+
+impl<Kind: AttrKeywordKind> Parse for AttrKeyword<Kind> {
+    fn parse(input: ParseStream) -> Result<Self> {
+        let id: Ident = input.parse()?;
+        Ok(Self {
+            span: id.span(),
+            kind: id.try_into()?,
+        })
+    }
+}
+
+struct ParseAttr<Kind> {
+    kw: AttrKeyword<Kind>,
     _equal_token: Token![=],
     value: LitStr,
 }
 
-impl Parse for ParseAttr {
+impl<Kind: AttrKeywordKind> Parse for ParseAttr<Kind> {
     fn parse(input: ParseStream) -> Result<Self> {
         Ok(Self {
             kw: input.parse()?,
@@ -148,36 +209,44 @@ impl Parse for ParseAttr {
     }
 }
 
-fn get_parser_from_attrs(
+fn parse_attr_map<Kind: AttrKeywordKind>(
     attrs: Vec<syn::Attribute>,
-    expected_keyword: &str,
-    span: Span,
-) -> Result<Option<Expr>> {
-    let parse_attrs: Vec<_> = attrs
-        .iter()
+) -> Result<BTreeMap<Kind, LitStr>> {
+    let parsed_attrs: Vec<ParseAttrs<Kind>> = attrs
+        .into_iter()
         .filter(|a| a.path.get_ident() == Some(&Ident::new("parse", Span::call_site())))
+        .map(|a| parse2(a.tokens))
+        .collect::<Result<_>>()?;
+    let attrs: Vec<_> = parsed_attrs
+        .into_iter()
+        .map(|a| a.attrs.into_iter())
+        .flatten()
         .collect();
-    if parse_attrs.len() > 1 {
-        return Err(Error::new(span, "too many attributes"));
-    }
 
-    if parse_attrs.is_empty() {
-        return Ok(None);
-    }
-
-    let a: Attribute = (*parse_attrs.first().unwrap()).clone();
-
-    let inner_attrs: ParseAttrs = parse2(a.tokens)?;
-    if inner_attrs.attrs.len() > 1 {
-        return Err(Error::new(span, "too many attributes"));
-    }
-
-    if let Some(a) = inner_attrs.attrs.first() {
-        let keyword = &a.kw;
-        if keyword != &Ident::new(expected_keyword, Span::call_site()) {
-            return Err(Error::new(span, "unknown keyword {keyword:?}"));
+    let mut attr_map = BTreeMap::new();
+    for attr in attrs {
+        if attr_map.contains_key(&attr.kw.kind) {
+            return Err(Error::new(attr.kw.span(), "Duplicate attribute"));
         }
-        let value = &a.value;
+        attr_map.insert(attr.kw.kind, attr.value);
+    }
+    Ok(attr_map)
+}
+
+fn get_variant_parser_from_attrs(attrs: Vec<syn::Attribute>) -> Result<Option<Expr>> {
+    let attr_map = parse_attr_map::<VariantKeyword>(attrs)?;
+
+    if let Some(value) = attr_map.get(&VariantKeyword::String) {
+        Ok(Some(parse_quote!(string(#value))))
+    } else {
+        Ok(None)
+    }
+}
+
+fn get_container_separator_parser_from_attrs(attrs: Vec<syn::Attribute>) -> Result<Option<Expr>> {
+    let attr_map = parse_attr_map::<ContainerKeyword>(attrs)?;
+
+    if let Some(value) = attr_map.get(&ContainerKeyword::SepBy) {
         Ok(Some(parse_quote!(string(#value))))
     } else {
         Ok(None)
@@ -196,8 +265,8 @@ fn derive_has_parser_enum(name: Ident, data: DataEnum) -> Result<ItemImpl> {
         let variant_span = v.span();
         match v.fields {
             Fields::Unit => {
-                let parser = get_parser_from_attrs(v.attrs, "string", variant_span)?
-                    .unwrap_or(name_parser(variant_name));
+                let parser =
+                    get_variant_parser_from_attrs(v.attrs)?.unwrap_or(name_parser(variant_name));
                 parsers.push(parse_quote!(attempt(#parser.map(|_| Self::#variant_name))));
             }
             Fields::Unnamed(f) => {
