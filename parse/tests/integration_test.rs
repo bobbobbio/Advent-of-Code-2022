@@ -96,3 +96,16 @@ struct Tuple(u32, u64);
 fn tuple_test() {
     test_parse(Tuple(99, 12), "99, 12");
 }
+
+#[derive(HasParser, PartialEq, Debug)]
+struct Foo;
+
+#[derive(HasParser, PartialEq, Debug)]
+#[parse(string = "qux")]
+struct Baz;
+
+#[test]
+fn unit_struct() {
+    test_parse(Foo, "foo");
+    test_parse(Baz, "qux");
+}

@@ -75,31 +75,37 @@ fn derive_has_parser_struct(
     let mut fields_iter = fields.iter().peekable();
     let mut unique = (1..).map(|n| Ident::new(&format!("f{n}"), Span::call_site()));
 
-    let sep_parser: Expr =
-        get_container_separator_parser_from_attrs(parse_quote!(char(' ')), attrs)?;
+    if fields.is_empty() {
+        parsers.push(get_variant_parser_from_attrs(name_parser(&name), attrs)?);
+    } else {
+        let sep_parser: Expr =
+            get_container_separator_parser_from_attrs(parse_quote!(char(' ')), attrs)?;
 
-    while let Some(f) = fields_iter.next() {
-        let ty = &f.ty;
+        while let Some(f) = fields_iter.next() {
+            let ty = &f.ty;
 
-        let default_parser_expr = parse_quote!(<#ty as ::parse::HasParser>::parser());
-        let parser_expr = get_field_parser_from_attrs(default_parser_expr, f.attrs.clone())?;
-        if fields_iter.peek().is_some() {
-            parsers.push(parse_quote!(#parser_expr.skip(#sep_parser)));
-        } else {
-            parsers.push(parser_expr);
-        }
+            let default_parser_expr = parse_quote!(<#ty as ::parse::HasParser>::parser());
+            let parser_expr = get_field_parser_from_attrs(default_parser_expr, f.attrs.clone())?;
+            if fields_iter.peek().is_some() {
+                parsers.push(parse_quote!(#parser_expr.skip(#sep_parser)));
+            } else {
+                parsers.push(parser_expr);
+            }
 
-        if let Some(field_name) = f.ident.clone() {
-            patterns.push(parse_quote!(#field_name));
-            field_names.push(field_name);
-        } else {
-            let ident = unique.next().unwrap();
-            patterns.push(parse_quote!(#ident));
+            if let Some(field_name) = f.ident.clone() {
+                patterns.push(parse_quote!(#field_name));
+                field_names.push(field_name);
+            } else {
+                let ident = unique.next().unwrap();
+                patterns.push(parse_quote!(#ident));
+            }
         }
     }
 
     let map_closure: Expr = if field_names.is_empty() {
-        if patterns.len() == 1 {
+        if patterns.len() == 0 {
+            parse_quote!(|_| Self)
+        } else if patterns.len() == 1 {
             parse_quote!(Self)
         } else {
             parse_quote!(|(#(#patterns),*)| Self(#(#patterns),*))
