@@ -63,6 +63,8 @@ impl TryFrom<Ident> for VariantKeyword {
 #[derive(Debug, PartialEq, Eq, Clone, Copy, PartialOrd, Ord)]
 pub enum ContainerKeyword {
     SepBy,
+    Before,
+    After,
 }
 
 impl AttrKeywordKind for ContainerKeyword {}
@@ -73,6 +75,8 @@ impl TryFrom<Ident> for ContainerKeyword {
     fn try_from(id: Ident) -> Result<Self> {
         Ok(match &id.to_string()[..] {
             "sep_by" => Self::SepBy,
+            "before" => Self::Before,
+            "after" => Self::After,
             _ => return Err(Error::new(id.span(), "unknown keyword")),
         })
     }

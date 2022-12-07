@@ -27,15 +27,22 @@ fn many_things_parse() {
 #[derive(Debug, PartialEq, HasParser)]
 enum MixedThings {
     Hello,
+    #[parse(before = "(", after = ")", sep_by = ", ")]
+    Tuple(u32, u32),
+    #[parse(after = "u")]
     UNum(u32),
-    SNum(i32),
+    #[parse(after = "i")]
+    SNum {
+        i: i32,
+    },
 }
 
 #[test]
 fn mixed_things_parse() {
     test_parse(MixedThings::Hello, "hello");
-    test_parse(MixedThings::UNum(99), "99");
-    test_parse(MixedThings::SNum(-100), "-100");
+    test_parse(MixedThings::Tuple(99, 77), "(99, 77)");
+    test_parse(MixedThings::UNum(99), "99u");
+    test_parse(MixedThings::SNum { i: -100 }, "-100i");
 }
 
 #[derive(Debug, PartialEq, HasParser)]

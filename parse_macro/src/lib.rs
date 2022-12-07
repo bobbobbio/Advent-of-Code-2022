@@ -4,8 +4,8 @@ use heck::ToSnakeCase as _;
 use proc_macro::TokenStream;
 use proc_macro2::Span;
 use quote::quote;
+use std::collections::BTreeMap;
 use std::matches;
-use syn::spanned::Spanned;
 use syn::*;
 
 mod attrs;
@@ -68,18 +68,38 @@ fn derive_has_parser_struct(
     attrs: Vec<Attribute>,
     data: DataStruct,
 ) -> Result<ItemImpl> {
-    let fields: Vec<&Field> = data.fields.iter().collect();
-    let mut patterns: Vec<Pat> = vec![];
-    let mut field_names: Vec<Ident> = vec![];
-    let mut parsers: Vec<Expr> = vec![];
-    let mut fields_iter = fields.iter().peekable();
-    let mut unique = (1..).map(|n| Ident::new(&format!("f{n}"), Span::call_site()));
+    let parser_expr = parse_expr_for_struct(parse_quote!(Self), name.clone(), attrs, data.fields)?;
+
+    Ok(parse_quote! {
+        impl ::parse::HasParser for #name {
+            #[into_parser]
+            fn parser() -> _ {
+                #parser_expr
+            }
+        }
+    })
+}
+
+fn parse_expr_for_struct(
+    self_expr: Expr,
+    name: Ident,
+    attrs: Vec<Attribute>,
+    fields: Fields,
+) -> Result<Expr> {
+    let fields: Vec<&Field> = fields.iter().collect();
 
     if fields.is_empty() {
-        parsers.push(get_variant_parser_from_attrs(name_parser(&name), attrs)?);
+        let parser = get_unit_parser_from_attrs(name_parser(&name), attrs)?;
+        Ok(parse_quote!(#parser.map(|_| #self_expr)))
     } else {
-        let sep_parser: Expr =
-            get_container_separator_parser_from_attrs(parse_quote!(char(' ')), attrs)?;
+        let mut patterns: Vec<Pat> = vec![];
+        let mut field_names: Vec<Ident> = vec![];
+        let mut parsers: Vec<Expr> = vec![];
+        let mut fields_iter = fields.iter().peekable();
+        let mut unique = (1..).map(|n| Ident::new(&format!("f{n}"), Span::call_site()));
+
+        let attr_map = attrs::parse_attr_map::<attrs::ContainerKeyword>(attrs)?;
+        let sep_parser: Expr = get_separator_parser_from_attrs(parse_quote!(char(' ')), &attr_map);
 
         while let Some(f) = fields_iter.next() {
             let ty = &f.ty;
@@ -100,31 +120,26 @@ fn derive_has_parser_struct(
                 patterns.push(parse_quote!(#ident));
             }
         }
-    }
 
-    let map_closure: Expr = if field_names.is_empty() {
-        if patterns.len() == 0 {
-            parse_quote!(|_| Self)
-        } else if patterns.len() == 1 {
-            parse_quote!(Self)
-        } else {
-            parse_quote!(|(#(#patterns),*)| Self(#(#patterns),*))
-        }
-    } else {
-        parse_quote!(|(#(#patterns),*)| Self { #(#field_names),* })
-    };
+        let parser_expr = get_struct_parser_from_attrs(parse_quote!((#(#parsers),*)), &attr_map);
 
-    Ok(parse_quote! {
-        impl ::parse::HasParser for #name {
-            #[into_parser]
-            fn parser() -> _ {
-                (#(#parsers),*).map(#map_closure)
+        let map_closure: Expr = if field_names.is_empty() {
+            if patterns.len() == 1 {
+                parse_quote!(#self_expr)
+            } else {
+                parse_quote!(|(#(#patterns),*)| #self_expr(#(#patterns),*))
             }
-        }
-    })
+        } else {
+            parse_quote!(|(#(#patterns),*)| #self_expr { #(#field_names),* })
+        };
+
+        Ok(parse_quote! {
+            #parser_expr.map(#map_closure)
+        })
+    }
 }
 
-fn get_variant_parser_from_attrs(default_parser: Expr, attrs: Vec<syn::Attribute>) -> Result<Expr> {
+fn get_unit_parser_from_attrs(default_parser: Expr, attrs: Vec<syn::Attribute>) -> Result<Expr> {
     let attr_map = attrs::parse_attr_map::<attrs::VariantKeyword>(attrs)?;
 
     if let Some(value) = attr_map.get(&attrs::VariantKeyword::String) {
@@ -134,17 +149,32 @@ fn get_variant_parser_from_attrs(default_parser: Expr, attrs: Vec<syn::Attribute
     }
 }
 
-fn get_container_separator_parser_from_attrs(
+fn get_separator_parser_from_attrs(
     default_parser: Expr,
-    attrs: Vec<syn::Attribute>,
-) -> Result<Expr> {
-    let attr_map = attrs::parse_attr_map::<attrs::ContainerKeyword>(attrs)?;
-
+    attr_map: &BTreeMap<attrs::ContainerKeyword, LitStr>,
+) -> Expr {
     if let Some(value) = attr_map.get(&attrs::ContainerKeyword::SepBy) {
-        Ok(parse_quote!(string(#value)))
+        parse_quote!(string(#value))
     } else {
-        Ok(default_parser)
+        default_parser
     }
+}
+
+fn get_struct_parser_from_attrs(
+    default_parser: Expr,
+    attr_map: &BTreeMap<attrs::ContainerKeyword, LitStr>,
+) -> Expr {
+    let mut parser = default_parser;
+
+    if let Some(value) = attr_map.get(&attrs::ContainerKeyword::Before) {
+        parser = parse_quote!(string(#value).with(#parser));
+    }
+
+    if let Some(value) = attr_map.get(&attrs::ContainerKeyword::After) {
+        parser = parse_quote!(#parser.skip(string(#value)));
+    }
+
+    parser
 }
 
 fn get_field_parser_from_attrs(default_parser: Expr, attrs: Vec<syn::Attribute>) -> Result<Expr> {
@@ -171,29 +201,9 @@ fn name_parser(name: &Ident) -> Expr {
 fn derive_has_parser_enum(name: Ident, data: DataEnum) -> Result<ItemImpl> {
     let mut parsers: Vec<Expr> = vec![];
     for v in data.variants {
-        let variant_name = &v.ident;
-        let variant_span = v.span();
-        match v.fields {
-            Fields::Unit => {
-                let parser = get_variant_parser_from_attrs(name_parser(variant_name), v.attrs)?;
-                parsers.push(parse_quote!(attempt(#parser.map(|_| Self::#variant_name))));
-            }
-            Fields::Unnamed(f) => {
-                if f.unnamed.len() != 1 {
-                    return Err(Error::new(
-                        variant_span,
-                        "unnamed enum fields must have exactly one field",
-                    ));
-                }
-                let f = f.unnamed.first().unwrap();
-                let ty = &f.ty;
-                let parser: Expr = parse_quote!(<#ty as ::parse::HasParser>::parser());
-                parsers.push(parse_quote!(attempt(#parser.map(Self::#variant_name))));
-            }
-            Fields::Named(_) => {
-                return Err(Error::new(variant_span, "named enum fields not supported"));
-            }
-        };
+        let name = v.ident;
+        let parser = parse_expr_for_struct(parse_quote!(Self::#name), name, v.attrs, v.fields)?;
+        parsers.push(parse_quote!(attempt(#parser)));
     }
     Ok(parse_quote! {
         impl ::parse::HasParser for #name {

@@ -26,19 +26,11 @@ impl HasParser for CommandPath {
     }
 }
 
+#[derive(HasParser)]
 enum Entry {
+    #[parse(before = "dir ")]
     Dir(CommandPath),
     File(u64, CommandPath),
-}
-
-impl HasParser for Entry {
-    #[into_parser]
-    fn parser() -> _ {
-        let file = (u64::parser().skip(char(' ')), CommandPath::parser())
-            .map(|(size, name)| Self::File(size, name));
-        let dir = string("dir ").with(CommandPath::parser()).map(Self::Dir);
-        file.or(dir)
-    }
 }
 
 #[derive(HasParser)]
