@@ -13,6 +13,7 @@ members = [
     'one',
     'parse',
     'parse_macro',
+    'seven',
     'six',
     'three',
     'two',
