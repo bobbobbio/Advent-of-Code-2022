@@ -8,6 +8,7 @@ panic = 'abort'
 members = [
     'advent',
     'advent_macro',
+    'eight',
     'five',
     'four',
     'one',
