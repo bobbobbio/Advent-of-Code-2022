@@ -17,6 +17,7 @@ members = [
     'parse_macro',
     'seven',
     'six',
+    'ten',
     'three',
     'two',
 ]

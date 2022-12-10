@@ -88,8 +88,11 @@ macro_rules! signed_number_parser {
         $(impl HasParser for $id {
             #[into_parser]
             fn parser() -> _ {
-                token('-').with(many1(digit()))
-                    .map(|s: String| format!("-{s}").parse::<Self>().unwrap())
+                choice((
+                    token('-').with(many1(digit()))
+                        .map(|s: String| format!("-{s}").parse::<Self>().unwrap()),
+                    u32::parser().map(|v| v.try_into().unwrap())
+                ))
             }
         })*
     }
