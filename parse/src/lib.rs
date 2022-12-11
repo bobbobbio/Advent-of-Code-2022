@@ -111,6 +111,9 @@ impl HasParser for String {
 pub struct Comma;
 
 #[derive(Debug, Clone, Copy)]
+pub struct CommaSpace;
+
+#[derive(Debug, Clone, Copy)]
 pub struct NewLine;
 
 #[derive(Debug, Clone, Copy)]
@@ -145,6 +148,13 @@ impl<T: HasParser> HasParser for List<T, SepBy<Comma>> {
     #[into_parser]
     fn parser() -> _ {
         sep_by1(T::parser(), token(',')).map(|v: Vec<_>| v.into())
+    }
+}
+
+impl<T: HasParser> HasParser for List<T, SepBy<CommaSpace>> {
+    #[into_parser]
+    fn parser() -> _ {
+        sep_by1(T::parser(), string(", ")).map(|v: Vec<_>| v.into())
     }
 }
 

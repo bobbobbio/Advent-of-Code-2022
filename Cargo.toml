@@ -9,6 +9,7 @@ members = [
     'advent',
     'advent_macro',
     'eight',
+    'eleven',
     'five',
     'four',
     'nine',
