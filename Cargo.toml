@@ -20,5 +20,6 @@ members = [
     'six',
     'ten',
     'three',
+    'twelve',
     'two',
 ]
