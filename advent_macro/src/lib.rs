@@ -35,10 +35,14 @@ fn part_inner(input: TokenStream, part_number: usize) -> Result<File> {
 
     Ok(parse_quote! {
         #func
-        fn #tramp(input: &str) -> ::advent::parse::Result<()> {
+        fn #tramp(input: &str, json: bool) -> ::advent::parse::Result<()> {
             let p: #parsed_type = ::advent::parse::parse_str(input)?;
             let result = #func_name(p);
-            println!("Part {}: {}", #part_number, result);
+            if json {
+                println!("{{\"part\": {}, \"answer\": \"{}\"}}", #part_number, result);
+            } else {
+                println!("Part {}: {}", #part_number, result);
+            }
             Ok(())
         }
 
@@ -93,9 +97,10 @@ fn main_func() -> ItemFn {
             use ::std::io::Read as _;
             let mut input = ::std::string::String::new();
             ::std::io::stdin().lock().read_to_string(&mut input)?;
+            let json = ::std::env::args().any(|a| a == "--json");
 
-            _run_part_1(&input)?;
-            _run_part_2(&input)?;
+            _run_part_1(&input, json)?;
+            _run_part_2(&input, json)?;
 
             Ok(())
         }

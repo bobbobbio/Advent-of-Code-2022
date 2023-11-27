@@ -1,4 +1,4 @@
-#![feature(type_alias_impl_trait)]
+#![feature(type_alias_impl_trait, impl_trait_in_assoc_type)]
 
 use combine::eof;
 use combine::parser::char::{alpha_num, spaces};
@@ -34,6 +34,17 @@ impl HasParser for char {
     #[into_parser]
     fn parser() -> _ {
         alpha_num()
+    }
+}
+
+impl<A, B> HasParser for (A, B)
+where
+    A: HasParser,
+    B: HasParser,
+{
+    #[into_parser]
+    fn parser() -> _ {
+        (A::parser(), B::parser())
     }
 }
 

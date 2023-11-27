@@ -5,6 +5,7 @@ lto = 'thin'
 panic = 'abort'
 
 [workspace]
+resolver = '2'
 members = [
     'advent',
     'advent_macro',
