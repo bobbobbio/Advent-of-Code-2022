@@ -4,11 +4,11 @@ use advent::prelude::*;
 
 #[part_one]
 fn part_one(input: List<List<u32, TermWith<NewLine>>, SepBy<NewLine>>) -> u32 {
-    let mut higest_elf_calories = 0;
-    for l in input {
-        higest_elf_calories = std::cmp::max(l.into_iter().sum(), higest_elf_calories);
-    }
-    higest_elf_calories
+    input
+        .into_iter()
+        .map(|l| l.into_iter().sum())
+        .max()
+        .unwrap()
 }
 
 #[part_two]
